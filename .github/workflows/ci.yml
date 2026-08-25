@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    # Linux only: §15 of the build spec deprioritizes Windows testing
+    # ("tested primarily on Linux/macOS"), and test_supervisor.py's kill-9
+    # tests specifically need real POSIX SIGTERM delivery a Python handler
+    # can catch, which native Windows can't provide the same way.
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Sync dependencies
+        run: uv sync --extra dev
+
+      - name: ruff check
+        run: uv run ruff check .
+
+      - name: ruff format --check
+        run: uv run ruff format --check .
+
+      - name: mypy
+        run: uv run mypy src/
+
+      - name: pytest
+        run: uv run pytest -n auto
+
+      - name: pip-audit
+        run: uv run pip-audit
+
+      - name: Guard against raw subprocess.Popen outside supervisor.py
+        run: |
+          if grep -rn --include='*.py' 'subprocess\.Popen' src/ | grep -v 'src[/\\]paperloom[/\\]supervisor\.py'; then
+            echo "::error::Found subprocess.Popen outside supervisor.py — use paperloom.supervisor.spawn() or child() instead (see §6 of paperloom.md)."
+            exit 1
+          fi

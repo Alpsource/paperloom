@@ -1,0 +1,35 @@
+site_name: Paperloom
+site_description: Folder-scoped, LLM-maintained research wiki for scientific papers.
+repo_url: https://github.com/Alpsource/paperloom
+repo_name: Alpsource/paperloom
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.sections
+    - content.code.copy
+
+nav:
+  - Home: index.md
+  - Quickstart: quickstart.md
+  - Schema (CLAUDE.md): schema.md
+  - Plugins: plugins.md
+  - Credits: credits.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - tables
