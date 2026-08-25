@@ -1,0 +1,96 @@
+[project]
+name = "paperloom"
+version = "0.1.0"
+description = "Folder-scoped LLM-maintained research wiki for scientific papers"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "paperloom contributors" }]
+keywords = ["llm-wiki", "karpathy", "mindbase", "knowledge-base", "mcp", "research"]
+
+dependencies = [
+  # CLI + config
+  "typer>=0.12",
+  "rich>=13.7",
+  "pyyaml>=6.0",
+  "pydantic>=2.7",
+
+  # MCP server
+  "fastmcp>=2.0",
+
+  # PDF parsing (primary). The `[core]` extra is required, not optional —
+  # bare `mineru` installs a lightweight remote-only client with no local
+  # parsing capability at all; `paperloom ingest` would fail on every PDF
+  # ("hybrid-engine requires local pipeline dependencies") without this.
+  # Pulls PyTorch + several GB of model weights on first real parse.
+  "mineru[core]>=3.1",
+
+  # Lightweight PDF text extraction, used only to read page-1 text for
+  # arXiv/DOI ID detection before MinerU runs (not in §4's original list —
+  # see PROGRESS.md item 4)
+  "pypdf>=4.0",
+
+  # HTTP for optional metadata enrichment (Semantic Scholar)
+  "httpx>=0.27",
+
+  # File watching for optional live-reindex plugin
+  "watchdog>=4.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/Alpsource/paperloom"
+Repository = "https://github.com/Alpsource/paperloom"
+Changelog = "https://github.com/Alpsource/paperloom/blob/main/CHANGELOG.md"
+
+# §4 originally listed a `fts` extra pointing at "sqlite-fts5" — explicitly
+# flagged there as "NOT REAL — use stdlib sqlite3 which has FTS5 built in."
+# No pip package by that name exists, and declaring it as a real extra
+# breaks `uv sync`'s full-lockfile resolution (it validates every declared
+# extra is installable, even ones you're not requesting) — confirmed by an
+# actual failed `uv sync --extra dev` run. Omitted entirely rather than
+# shipping a broken group; stdlib sqlite3's FTS5 needs no extra install.
+[project.optional-dependencies]
+ollama = ["ollama>=0.4"]            # for the offline synthesis plugin (§11)
+grobid = ["grobid-tei-xml>=0.1"]    # for bibliography extraction
+dev    = ["pytest>=8.3", "pytest-xdist", "pytest-asyncio>=0.24", "ruff>=0.6",
+          "mypy>=1.11", "pre-commit", "mkdocs-material", "pip-audit"]
+
+[project.scripts]
+paperloom = "paperloom.cli:app"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+exclude = ["examples/", "tests/fixtures/*.pdf"]
+
+[tool.ruff.lint]
+# A deliberately modest, standard baseline (pyflakes + pycodestyle errors +
+# isort + pyupgrade + bugbear) rather than ruff's full default rule set,
+# which pulls in much stricter/opinionated categories (blind-except,
+# simplify, implicit-str-concat, ...) not worth the churn for this project.
+select = ["E4", "E7", "E9", "F", "I", "UP", "B"]
+ignore = [
+  "B008",  # function calls in default args — Typer's whole API is built on this
+]
+
+[tool.mypy]
+python_version = "3.11"
+# CI (and §15's own guidance — "tested primarily on Linux/macOS") targets
+# Linux; pin mypy to evaluate as Linux regardless of the host OS actually
+# running it, so POSIX-only symbols (os.killpg, signal.SIGKILL, ...) in
+# supervisor.py's POSIX branch aren't spuriously flagged as missing when
+# checked from a Windows dev machine.
+platform = "linux"
+ignore_missing_imports = true
+# Full strict mode is more rigor than this project's current size warrants;
+# this catches real type errors without demanding annotations everywhere.
+disallow_untyped_defs = false
+warn_unused_ignores = true
+warn_redundant_casts = true
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

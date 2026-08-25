@@ -1,0 +1,18 @@
+{
+  "id": "2309.16014",
+  "title": "Graph-level Representation Learning with Joint-Embedding Predictive Architectures",
+  "authors": [
+    "G. Skenderi",
+    "Hang Li",
+    "Jiliang Tang",
+    "Marco Cristani"
+  ],
+  "year": 2023,
+  "venue": "Trans. Mach. Learn. Res.",
+  "doi": null,
+  "arxiv_id": "2309.16014",
+  "sha256": "df1db2fe8b665c5884c040a243199f27b37c09176de4d4b7da2e9bc3d1c0edec",
+  "ingested_at": "2026-08-24T21:54:10.182880+00:00",
+  "n_pages": 20,
+  "n_refs": 79
+}
