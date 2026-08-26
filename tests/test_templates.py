@@ -25,3 +25,20 @@ def test_claude_md_is_the_real_schema_not_the_placeholder(tmp_path):
     assert "/rebuild-context" in claude_md
     assert "sources/raw/<paper-id>/" in claude_md
     assert "{{common-knowledge}}" in claude_md
+
+
+def test_init_ships_real_slash_commands_for_the_four_operations(tmp_path):
+    """/contribute, /ask, /lint, /rebuild-context are workflow names defined
+    in CLAUDE.md, not built-in Claude Code commands — without a real
+    .claude/commands/*.md per operation they silently don't autocomplete,
+    which is exactly the confusion a real user hit. Guards against losing
+    these on a future template edit."""
+    vault = tmp_path / "vault"
+    result = runner.invoke(app, ["init", str(vault)])
+    assert result.exit_code == 0, result.output
+
+    commands_dir = vault / ".claude" / "commands"
+    for name in ("contribute", "ask", "lint", "rebuild-context"):
+        path = commands_dir / f"{name}.md"
+        assert path.is_file(), f"missing {path}"
+        assert "description:" in path.read_text(encoding="utf-8")
