@@ -64,7 +64,14 @@ asyncio_mode = "auto"
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-exclude = ["examples/", "tests/fixtures/*.pdf"]
+# extend-exclude, not exclude — exclude REPLACES ruff's built-in default
+# exclude list (.venv, .git, __pycache__, dist, build, ...) rather than
+# adding to it; confirmed by a real `ruff check .` run inside a fresh
+# uv-created .venv/ with no .gitignore present, which then linted third-
+# party packages in site-packages. Real CI's git checkout means
+# respect-gitignore (on by default) likely masks this there, but that's
+# not something to depend on.
+extend-exclude = ["examples/", "tests/fixtures/*.pdf"]
 
 [tool.ruff.lint]
 # A deliberately modest, standard baseline (pyflakes + pycodestyle errors +
@@ -77,7 +84,12 @@ ignore = [
 ]
 
 [tool.mypy]
-python_version = "3.11"
+# NOT 3.11, despite requires-python = ">=3.11" — see the note below. This
+# only controls which static-typing syntax mypy accepts; it doesn't affect
+# runtime behavior, and can't silently let 3.12-only syntax into our own
+# code unnoticed: the CI matrix runs pytest under a real 3.11 interpreter
+# too, which would hard-fail with a genuine SyntaxError on the spot.
+python_version = "3.12"
 # CI (and §15's own guidance — "tested primarily on Linux/macOS") targets
 # Linux; pin mypy to evaluate as Linux regardless of the host OS actually
 # running it, so POSIX-only symbols (os.killpg, signal.SIGKILL, ...) in
@@ -90,6 +102,18 @@ ignore_missing_imports = true
 disallow_untyped_defs = false
 warn_unused_ignores = true
 warn_redundant_casts = true
+
+# Why python_version isn't 3.11: mineru[core] pulls numpy/torch into the
+# environment, and even though nothing in src/paperloom imports either
+# directly (ingest.py shells out to the mineru CLI as a subprocess, never
+# as a library), a direct dependency's own stubs (pydantic) reference
+# numpy types somewhere in its public surface — enough that mypy has to
+# parse numpy's bundled .pyi to resolve them. That .pyi uses PEP 695 `type`
+# statement syntax (3.12+ only) unconditionally, which fails to parse
+# under an older python_version target regardless of which interpreter
+# actually runs mypy, and regardless of follow_imports = "skip" on
+# numpy.* (confirmed directly — parsing fails before "skip" semantics can
+# apply). Targeting 3.12 avoids the parse error entirely.
 
 [build-system]
 requires = ["hatchling"]
