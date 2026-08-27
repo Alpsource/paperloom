@@ -724,6 +724,59 @@ as the reference; nothing about this change touches your existing
 
 ---
 
+## Making Cline+Ollama actually work smoothly (real-world setup)
+
+**Status: done.** After the model-agnostic architecture landed, you
+installed Cline (VS Code extension), Ollama, and pulled `qwen3.5:9b` and
+`qwen3.5:4b`, using `4b` for the larger context window given your RAM/
+VRAM/storage constraints. This wasn't more infrastructure — the mechanical
+pieces already worked — it was making sure the actual setup wouldn't
+silently fail.
+
+**Model pick, researched fresh rather than from training-cutoff knowledge**
+(you specifically asked for this): the obvious-looking name "Qwen3.8" is
+real, but it's an unrelated, much newer flagship line (`Qwen3.8-Max`, a
+2.4T-parameter MoE; `Qwen3.8-Flash-Next`, 176B total params, ~110GB even at
+4-bit) released the same week as this conversation — nowhere near
+local-GPU territory. **Qwen3.5** (Feb 2026, so still current) is the
+actual right pick: real dense 4B/9B variants on Ollama's library
+(`qwen3.5:9b` = 6.6GB), confirmed native MCP/tool-calling support (the
+Qwen3.x line is specifically optimized for MCP agent use, verified via
+Qwen-Agent's own docs), which matters a lot here since local-mode's entire
+value depends on the model actually calling paperloom's tools correctly,
+not just chatting well.
+
+**The real gotcha, found before it could bite you:** Cline's MCP config is
+one global file (`cline_mcp_settings.json`, not per-project like
+`.mcp.json`), and Cline has a documented history of spawning stdio MCP
+servers with the wrong working directory unless `cwd` is set explicitly —
+confirmed via Cline's own GitHub PR #2990 and issue #9950, not assumed.
+Since `paperloom mcp` finds the vault by walking up from its own cwd
+(`find_vault_root()`), a wrong cwd would have meant Cline's `paperloom`
+tools either silently fail or resolve the wrong vault, with nothing
+obviously pointing at the cause. Fixed by documenting
+`"cwd": "${workspaceFolder}"` explicitly in `docs/quickstart-local.md`'s
+new Cline setup section, rather than relying on a default that's been
+buggy before.
+
+**Scope, deliberately kept small:** no paperloom code changes — this was
+purely a docs-accuracy gap (the setup steps that would have made "select
+Ollama instead of Claude Code" actually work weren't written down
+anywhere). Added: the Cline config location per OS, the exact JSON entry,
+the `cwd` explanation, and a short Ollama memory-management note
+(`ollama stop <model>` / default 5-minute auto-unload) addressing your
+"don't keep models resident" request. Also refreshed
+`docs/quickstart-local.md`'s model-tier table to reference Qwen3.5 instead
+of the now-superseded Qwen3 names it originally had.
+
+**What's still yours to do:** I can't drive Cline's UI myself (it's a VS
+Code extension, not scriptable from here), so the actual end-to-end
+smoke test — does Cline's MCP panel show `paperloom` connected, does a
+real question through `qwen3.5:4b` in local mode come back sensibly — is
+on you, using the steps in `docs/quickstart-local.md`'s new Cline section.
+
+---
+
 ## Not started yet (§17 item 9, v0.2)
 
 9. `migrate-from-mindbase` (optional for now).

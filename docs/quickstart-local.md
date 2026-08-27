@@ -52,6 +52,63 @@ Recommended, roughly by ease of setup:
 surface for no real benefit here), or build your own agent from scratch —
 that's not what paperloom is for; use one of the above instead.
 
+## Setting up Cline specifically
+
+Cline's MCP config isn't project-scoped like Claude Code's `.mcp.json` —
+it's one **global** file, shared across every VS Code workspace you open:
+
+- Windows: `%APPDATA%\Code\User\globalStorage\saoudrizwan.claude-dev\settings\cline_mcp_settings.json`
+- macOS: `~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`
+- Linux: `~/.config/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`
+
+(Or open it from inside VS Code: the MCP Servers icon in the Cline panel →
+"Configure MCP Servers".)
+
+Add a `paperloom` entry — **`cwd` matters here, don't omit it:**
+
+```json
+{
+  "mcpServers": {
+    "paperloom": {
+      "command": "paperloom",
+      "args": ["mcp"],
+      "cwd": "${workspaceFolder}"
+    }
+  }
+}
+```
+
+**Why `cwd` is required, not optional:** `paperloom mcp` finds your vault
+by walking up from its own working directory looking for `.paperloom/`
+(`find_vault_root()`). Because Cline's config is global rather than
+per-project, it has historically spawned stdio MCP servers with the wrong
+working directory by default (VS Code's own install directory, not your
+open workspace) unless `cwd` is set explicitly — see
+[cline/cline#2990](https://github.com/cline/cline/pull/2990) and
+[cline/cline#9950](https://github.com/cline/cline/issues/9950). With
+`"cwd": "${workspaceFolder}"`, Cline expands that to whichever folder you
+currently have open — so this one global config entry correctly follows
+you to any paperloom vault you open, no per-vault Cline reconfiguration
+needed (unlike `.mcp.json`, which — being per-project already — has no
+equivalent problem for Claude Code, Continue.dev, or Aider).
+
+After adding the entry: restart VS Code (or reload the Cline extension),
+open your vault folder as the workspace, and check Cline's MCP panel shows
+`paperloom` **connected** before doing anything else. If it's not
+connected, or tools error immediately, the `cwd` field is the first thing
+to check.
+
+**Managing Ollama's memory footprint.** Ollama unloads a model from
+RAM/VRAM automatically after 5 minutes of inactivity by default. If you'd
+rather not wait, unload it immediately after a session:
+
+```bash
+ollama stop qwen3.5:4b
+```
+
+`ollama ps` shows what's currently loaded if you want to check before
+starting something else memory-hungry.
+
 ## Switching your vault to local mode
 
 Open `CLAUDE.md` at your vault root and change one line:
@@ -83,9 +140,14 @@ so you have something concrete to compare your own results against.
 | Model class | Examples | Expected quality |
 |---|---|---|
 | **Frontier** | Claude Sonnet 4.5+, GPT-5, Gemini 2.5 Pro | Excellent — this is the reference bar |
-| **Strong local** | Qwen3-32B, Llama 3.3-70B (on capable hardware) | Good — noticeable quality gap but usable |
-| **Medium local** | Qwen3-14B, Llama 3.1-8B | Acceptable for factual retrieval; weaker at synthesis |
-| **Small local** | Llama 3.2-3B, Qwen3-4B | Retrieval only — don't expect real synthesis quality |
+| **Strong local** | Qwen3.5-27B+ (on capable hardware) | Good — noticeable quality gap but usable |
+| **Medium local** | Qwen3.5-9B, Llama 3.1-8B-class | Acceptable for factual retrieval; weaker at synthesis |
+| **Small local** | Qwen3.5-4B, Llama 3.2-3B | Retrieval only — don't expect real synthesis quality |
+
+(Model names age fast — treat these as "the current generation as of this
+writing," not gospel. Check what's actually current before picking one;
+see the note in `PROGRESS.md` about how we picked Qwen3.5 over the
+similarly-named-but-unrelated Qwen3.8 flagship line.)
 
 We're not going to promise more than this, and we're not going to hide the
 gap. A small model on a 6GB card can absolutely search your vault and
