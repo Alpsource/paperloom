@@ -1,7 +1,10 @@
-"""The MCP server: 9 tools, no more. See §9 of paperloom.md. The server is
-dumb — it exposes file-manipulation primitives; it never synthesizes or
-summarizes. All intelligence lives in the host agent, driven by the vault's
-CLAUDE.md."""
+"""The MCP server: 10 tools, no more. See §9 of paperloom.md (as amended by
+paperloom_ollama_correction.md). The server is dumb — it exposes
+file-manipulation primitives; it never synthesizes or summarizes, and it
+never calls an LLM of any kind, including local ones. All intelligence
+lives in the host agent, driven by the vault's CLAUDE.md. describe_workflow
+is the one concession to weak local models: canned step-by-step recipes,
+not reasoning."""
 
 from __future__ import annotations
 
@@ -20,6 +23,8 @@ from paperloom.plugins import load_all
 from paperloom.vault import find_vault_root
 
 mcp = FastMCP("paperloom")
+
+WORKFLOWS_DIR = Path(__file__).parent / "workflows"
 
 
 class SearchHit(BaseModel):
@@ -291,6 +296,32 @@ def vault_info() -> VaultInfo:
         n_logs=n_logs,
         plugins_loaded=_loaded_plugins,
     )
+
+
+@mcp.tool
+def describe_workflow(operation: str) -> str:
+    """Return a step-by-step recipe for a paperloom workflow.
+
+    Args:
+        operation: one of "contribute", "ask", "lint", "rebuild_context",
+                   "ingest", or "list_all".
+
+    Returns:
+        Plain text recipe with numbered steps, one per line, naming the
+        specific paperloom tools to call at each step. Frontier models
+        typically don't need this — CLAUDE.md is already sufficient
+        guidance for them. Small local models should call this first
+        before executing an operation for the first time.
+    """
+    find_vault_root()  # every tool requires vault context, even ones (like
+    # this one) that don't otherwise use it — matches §9's invariant.
+    available = sorted(f.stem for f in WORKFLOWS_DIR.glob("*.md"))
+    if operation == "list_all":
+        return "\n".join(available)
+    recipe_file = WORKFLOWS_DIR / f"{operation}.md"
+    if not recipe_file.is_file():
+        return f"No recipe for {operation!r}. Available: " + ", ".join(available)
+    return recipe_file.read_text(encoding="utf-8")
 
 
 # Plugin loading (§10). Runs once, at import time — the CLI's `mcp` command

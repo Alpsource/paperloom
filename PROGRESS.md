@@ -645,7 +645,85 @@ any sufficiently long future session.
 
 ---
 
-## Not started yet (§17 items 9–10, v0.2)
+## Item 10, corrected — model-agnostic architecture (not `ollama_synth.py`)
+
+**Status: done.** `paperloom_ollama_correction.md` superseded §11 of the
+build spec after external real-world use (a Linux-machine test session,
+22 real papers ingested and queried, `/ask` output quality independently
+assessed as genuinely strong) prompted a direct question: could a
+schema-less local LLM actually drive paperloom's existing tool loop as
+reliably as Claude Code does? The honest answer was no, and the original
+plan — a bundled `ollama_synth` plugin calling Ollama directly from inside
+paperloom — was flagged as real architectural drift from the spec's own
+design principles #1/#4 (zero required API keys, MCP server does file
+operations only, never LLM calls).
+
+**What changed:** paperloom never calls an LLM, anywhere, including local
+ones. Local-model support comes entirely from *other* MCP-compatible host
+agents (Continue.dev, Cline, Aider) already capable of talking to Ollama —
+paperloom's server is identical regardless of what's on the other end. The
+one concession to weak local models: a new 10th MCP tool,
+`describe_workflow(operation) -> str`, returning an explicit step-by-step
+recipe from `src/paperloom/workflows/*.md`, plus a mode-aware `CLAUDE.md`
+(`mode: capable` / `mode: local`) with dual-variant instructions for all
+four operations (`/contribute`, `/ask`, `/lint`, `/rebuild-context`) —
+extended to all four from the correction's own single worked example
+(`/ask`), keeping every existing `[capable mode]` instruction word-for-word
+from the already-validated schema, not rewritten.
+
+**Real bug found while writing the `/rebuild-context` local-mode variant:**
+none of paperloom's 10 tools can overwrite a whole file (`append_to_page`
+only appends; `create_note` refuses if the file exists), yet
+`/rebuild-context`'s own instructions have always said "rewrite
+context.md" — a gap present since the *original* §8 schema, never actually
+resolved. Fixed by being explicit in both the recipe file and `CLAUDE.md`:
+that one step uses the host agent's own native file-write capability, not
+a paperloom tool.
+
+**Built:**
+- `src/paperloom/mcp_server.py` — `describe_workflow`, following the
+  existing tool pattern exactly (including calling `find_vault_root()`
+  purely to preserve the "every tool requires vault context" invariant,
+  even though the function doesn't otherwise need it — matches the
+  correction's own reference implementation).
+- `src/paperloom/workflows/{contribute,ask,lint,rebuild_context,ingest}.md`
+  — verified these are actually packaged (not just present in the source
+  tree) by building a real wheel and inspecting its contents directly,
+  same discipline as everything else in this project.
+- Mode-aware `CLAUDE.md` in both the template and
+  `examples/ml-robotics-vault/` (kept byte-identical between the two, as
+  they were before this change).
+- `docs/quickstart-local.md` (host-agent comparison table, model-quality
+  tiers, honest "don't promise more than this" framing) and
+  `tests/qualitative/three_question_eval.md` (built from the three real
+  questions already run against the 22-paper vault, generalized into a
+  repeatable reference for what "good" looks like at each tier).
+- `paperloom.md` itself updated to apply the correction verbatim (§11
+  replaced, §8/§9/§17 amended) plus a full sweep for stale references the
+  correction didn't explicitly call out: a wrong section cross-reference
+  in the preamble (said "Section 12," meant "Section 9"), a `doctor`
+  command spec mentioning an Ollama check, and a "9 tools" count left
+  over in three more places.
+- New tests: `describe_workflow` happy/list_all/unknown-operation/
+  outside-vault-error, and a guard test that the shipped `workflows/*.md`
+  files match exactly what the tool expects — catches the two from
+  drifting apart.
+
+**Verification:** full suite passed clean on both platforms after the
+change — 47/47 native (Windows), 51/51 real Linux (WSL2, including
+`test_supervisor.py`'s kill-9 tests) — confirming the existing 46 tests
+are genuinely unchanged, not just "still passing by coincidence." `ruff
+check`, `ruff format --check`, `mypy src/`, `pip-audit` all clean on both
+platforms. `mkdocs build --strict` succeeds with the new page wired into
+nav. Real wheel build confirmed the new `workflows/` files are actually
+packaged. Not done, deliberately, per your own call: installing Ollama and
+running the three-question eval against a real local model — that's yours
+to do whenever convenient, using `tests/qualitative/three_question_eval.md`
+as the reference; nothing about this change touches your existing
+22-paper vault.
+
+---
+
+## Not started yet (§17 item 9, v0.2)
 
 9. `migrate-from-mindbase` (optional for now).
-10. `plugins/ollama_synth.py` (optional for now).

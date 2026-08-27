@@ -2,7 +2,7 @@
 
 > **A folder-scoped, LLM-maintained research wiki. MCP server + CLI + starter schema, ~500 lines of Python. Zero API keys, one directory per knowledge base, batch PDF ingest built in.**
 
-**For the implementing agent:** this document is a build spec. Follow it literally. Do not re-litigate design decisions marked "decided." When Section 12 says "9 tools, no more," that is a hard constraint. Ask before adding anything not in this doc.
+**For the implementing agent:** this document is a build spec. Follow it literally. Do not re-litigate design decisions marked "decided." When Section 9 says "10 tools, no more," that is a hard constraint. Ask before adding anything not in this doc.
 
 **Product positioning:** Paperloom implements Andrej Karpathy's [`llm-wiki` pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f), inspired by [MindBase](https://github.com/frankchu91/mindbase-llm-wiki)'s productization of it, with three specific improvements for scientific-paper research: (1) batch PDF ingest with MinerU pre-parsing, (2) one KB per working directory (no global data folder), (3) zero required LLM API keys — the host coding agent (Claude Code, Gemini CLI, etc.) is the LLM.
 
@@ -22,7 +22,7 @@ These are the invariants the implementation must preserve. Every change to the c
 
 3. **Markdown files on disk are the source of truth.** No SQLite index, no cached JSON, no `.paperloom.db`. If a file exists in `sources/research/foo.md`, that's what the tool sees. If the user deletes it, it's gone. If the user runs `git checkout`, the vault reflects that. The `.paperloom/` folder holds only ephemeral cache (search index, MinerU parse cache) that can be safely deleted and rebuilt.
 
-4. **No LLM API keys, ever.** The tool must never require `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, or any equivalent to function. The tool exposes file operations; the host agent supplies the intelligence via whatever subscription the user already has. Ollama support (Section 11) is opt-in for users who want fully-offline synthesis.
+4. **No LLM API keys, ever, and no LLM calls of any kind — including local ones.** The tool must never require `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, or any equivalent to function, and it must never call Ollama or any other model directly either. The tool exposes file operations; the host agent supplies the intelligence via whatever subscription or local model the user already has. Users who want fully-offline synthesis point a local-model-capable host agent (Continue.dev, Cline, Aider, ...) at paperloom's MCP server — see Section 11.
 
 5. **Every subprocess is supervised.** Ingestion spawns MinerU (which spawns Python subprocesses which spawn PyTorch which spawns CUDA workers). Every one of these gets registered with a supervisor that guarantees termination via `atexit`, signal handlers, and process-group kills. A `KeyboardInterrupt`, an unhandled exception, an OOM, or a machine power-off must never leave orphan processes. This is a first-class invariant with tests, not a nice-to-have.
 
@@ -50,10 +50,16 @@ paperloom/
 │   ├── ingest.py                      # PDF → MinerU → sources/raw/<id>/
 │   ├── search.py                      # ripgrep wrapper + optional sqlite-fts5 index
 │   ├── supervisor.py                  # Subprocess supervision (Section 6)
-│   ├── mcp_server.py                  # FastMCP server exposing the 9 tools
+│   ├── mcp_server.py                  # FastMCP server exposing the 10 tools
 │   ├── plugins/
 │   │   ├── __init__.py                # Plugin discovery (Section 10)
 │   │   └── example_plugin.py          # Reference plugin for docs
+│   ├── workflows/                     # describe_workflow's recipes (Section 9, tool 10)
+│   │   ├── contribute.md
+│   │   ├── ask.md
+│   │   ├── lint.md
+│   │   ├── rebuild_context.md
+│   │   └── ingest.md
 │   └── templates/
 │       └── scientific-paper-vault/    # Copied verbatim by `paperloom init`
 │           ├── CLAUDE.md              # The schema (Section 8)
@@ -72,11 +78,14 @@ paperloom/
 │   ├── test_ingest.py
 │   ├── test_supervisor.py             # Kill-9 the parent, assert no orphans
 │   ├── test_search.py
-│   ├── test_mcp_tools.py              # Each of the 9 tools, happy + error paths
-│   └── test_plugins.py                # Plugin discovery + registration
+│   ├── test_mcp_tools.py              # Each of the 10 tools, happy + error paths
+│   ├── test_plugins.py                # Plugin discovery + registration
+│   └── qualitative/
+│       └── three_question_eval.md     # Reference eval for model-quality tiers (Section 11)
 ├── docs/
 │   ├── index.md                       # mkdocs entry
 │   ├── quickstart.md
+│   ├── quickstart-local.md            # Local/offline models, host-agent recommendations (Section 11)
 │   ├── schema.md                      # How to customize CLAUDE.md
 │   ├── plugins.md                     # How to write a plugin
 │   └── credits.md                     # Karpathy pattern + MindBase attribution
@@ -156,7 +165,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-ollama = ["ollama>=0.4"]            # for the offline synthesis plugin (§11)
+# No `ollama` extra — see §11: paperloom never calls an LLM itself,
+# including local ones (paperloom_ollama_correction.md).
 grobid = ["grobid-tei-xml>=0.1"]    # for bibliography extraction
 fts    = ["sqlite-fts5"]            # NOT REAL — use stdlib sqlite3 which has FTS5 built in
 dev    = ["pytest>=8.3", "pytest-xdist", "ruff>=0.6", "mypy>=1.11",
@@ -197,8 +207,10 @@ paperloom mcp
     This is what .mcp.json points to.
 
 paperloom doctor
-    Check environment: python version, mineru installed, ollama reachable (if configured),
+    Check environment: python version, mineru installed, ripgrep on PATH,
     disk space, subprocess-supervisor test. Prints a report. Exit 0 if all green.
+    (No Ollama check — paperloom has no awareness of what LLM, if any, the
+    host agent uses. See §11.)
 
 paperloom search QUERY [--top 10]
     Command-line search over the vault. Uses the same backend as the search MCP tool.
@@ -561,13 +573,44 @@ user will notice when the graph is dense enough to be genuinely useful —
 that's when the pattern is working.
 ````
 
+### Mode-aware CLAUDE.md (added by `paperloom_ollama_correction.md`)
+
+Add these subsections to `templates/scientific-paper-vault/CLAUDE.md` right after the "Domain focus" section.
+
+````markdown
+## Operating mode (EDIT THIS ONCE)
+
+Set one of the following based on what host agent you use with this vault:
+
+- `mode: capable` — you use Claude Code with Sonnet-tier or better, Gemini
+  CLI with Gemini 2.5 Pro, or GPT-5-tier via Codex/similar. The agent is
+  expected to follow this schema in full, use judgment about when to
+  synthesize, walk the graph 2 hops deep, and proactively offer to file
+  answers as synthesis pages.
+
+- `mode: local` — you use Continue.dev / Cline / Aider pointed at a local
+  Ollama model (Qwen3-14B, Llama 3-8B, or similar). The agent gets
+  step-by-step recipes for every operation, does not attempt multi-hop
+  reasoning, asks for confirmation before every write, and reads fewer
+  pages per query to fit smaller context windows.
+
+**Current mode: capable**    ← edit to `local` if using local models
+
+The rest of this file has sections marked "[all modes]", "[capable only]",
+and "[local only]". Follow the sections that match your mode.
+````
+
+Then, throughout the CLAUDE.md, tag each behavioral rule in "The four operations" with `[capable mode]` / `[local mode]` variants, following the exact pattern shown for `/ask` in `paperloom_ollama_correction.md` (search → read top hit → cite → offer synthesis for local mode, vs. multi-hop reasoning for capable mode) — extended consistently to `/contribute`, `/lint`, and `/rebuild-context` too. Every workflow section gets both variants, clearly labeled; the agent follows the one matching its mode.
+
+**Why this beats two separate files:** one source of truth (schema changes propagate to both modes automatically), the user can switch modes any time by editing one line, diffs stay readable (a workflow change shows up in both variants side-by-side), and small models don't get confused by irrelevant capable-mode instructions because the section header tells them to skip.
+
 ---
 
-## 9. The MCP server: 9 tools, no more
+## 9. The MCP server: 10 tools, no more
 
 Implement with FastMCP. Every tool takes a `vault_root` implicitly via `find_vault_root()`. Every tool returns Pydantic-typed JSON. Every tool is ~20 lines.
 
-**The 9 tools (final list — do not add more without changing this spec):**
+**The 10 tools (final list — do not add more without changing this spec):**
 
 1. **`search(query: str, top_k: int = 10, path_prefix: str = None) -> list[SearchHit]`**
    Ripgrep across the vault (or SQLite FTS5 if enabled). Returns paths + snippet + line number. `path_prefix` scopes to e.g. `sources/research/methods/`.
@@ -598,6 +641,9 @@ Implement with FastMCP. Every tool takes a `vault_root` implicitly via `find_vau
 
 9. **`vault_info() -> dict`**
    Return `{"root": "...", "config": {...}, "n_raw": ..., "n_research": ..., "n_logs": ..., "plugins_loaded": [...]}`. Useful for the agent's first read of the session.
+
+10. **`describe_workflow(operation: str) -> str`** *(added by `paperloom_ollama_correction.md`)*
+    Return a step-by-step recipe for a paperloom workflow (`"contribute"`, `"ask"`, `"lint"`, `"rebuild_context"`, `"ingest"`, or `"list_all"`). Reads from `src/paperloom/workflows/<operation>.md`, shipped with the package. Used primarily by small local models that need workflow guidance beyond what CLAUDE.md provides — frontier models typically don't need this.
 
 **Not on the list, and not to be added:**
 - No `ask_wiki` / `run_wiki_health` / `ingest_plan` / `ingest_execute` — the agent does these itself using the tools above.
@@ -772,7 +818,6 @@ Then `pip install my-paperloom-plugin` and `paperloom mcp` picks it up automatic
 
 - `arxiv_watcher` — poll arXiv for new papers matching saved queries, prompt user to ingest.
 - `marp_export` — turn a synthesis page into a Marp slide deck under `artifacts/`.
-- `ollama_synth` — local-LLM synthesis path (§11).
 - `graph_export` — export the [[wikilink]] graph as GraphViz DOT or JSON for visualization.
 - `citekey_lint` — validate that every `\cite{...}` in draft artifacts resolves to a paper in the vault.
 
@@ -780,69 +825,81 @@ Then `pip install my-paperloom-plugin` and `paperloom mcp` picks it up automatic
 
 ---
 
-## 11. Ollama backend (opt-in offline synthesis)
+## 11. Model-agnostic architecture
 
-By default, paperloom needs no LLM keys — the host agent is the LLM. But some users want to run headless jobs (nightly `/rebuild-context`, scheduled `/lint`) without keeping Claude Code open. For them, ship an `ollama_synth` plugin.
+**Non-goal: paperloom does not call an LLM.** Ever. Not for synthesis, not for classification, not for embedding. The MCP server is pure file operations. This is design principle #1 and #4 from Section 1; this section explains what that means for users who want to run paperloom against local models.
 
-**Install:** `pip install "paperloom[ollama]"` and have Ollama running locally.
+*(This section replaces an earlier "Ollama backend" design — see `paperloom_ollama_correction.md` for the full rationale if you're wondering why there's no `ollama_synth` plugin here.)*
 
-**What the plugin adds:** a tool `synth(prompt: str, model: str = None, temperature: float = 0.0) -> str` that calls Ollama and returns the completion. Model defaults to whatever the vault's `.paperloom/config.yaml` says.
+### The correct boundary
 
-```python
-# src/paperloom/plugins/ollama_synth.py
-"""Optional plugin: LLM synthesis via local Ollama. No API key required."""
-
-import ollama
-from paperloom.vault import find_vault_root, load_config
-
-
-def register(mcp):
-    @mcp.tool
-    def synth(
-        prompt: str, model: str | None = None, temperature: float = 0.0, system: str | None = None
-    ) -> str:
-        """Run a prompt through a local Ollama model. Returns the completion text.
-        Use this for headless jobs when no host agent (Claude Code, Gemini CLI) is
-        driving the session. For interactive work, prefer the host agent."""
-        cfg = load_config(find_vault_root())
-        m = model or cfg.get("ollama", {}).get("model", "qwen3:14b")
-        messages = []
-        if system:
-            messages.append({"role": "system", "content": system})
-        messages.append({"role": "user", "content": prompt})
-        r = ollama.chat(model=m, messages=messages, options={"temperature": temperature})
-        return r["message"]["content"]
-
-    @mcp.tool
-    def synth_available() -> dict:
-        """Check whether Ollama is reachable and which models are pulled."""
-        try:
-            models = ollama.list()
-            return {"available": True, "models": [m["name"] for m in models["models"]]}
-        except Exception as e:
-            return {"available": False, "error": str(e)}
+```
+┌──────────────────────────────────────────────────────────┐
+│  HOST AGENT (any MCP-compatible client)                  │
+│  - Claude Code           → Anthropic API                 │
+│  - Continue.dev          → any model incl. Ollama         │
+│  - Cline (VSCode)        → any model incl. Ollama         │
+│  - Aider                 → any model incl. Ollama         │
+│  - Gemini CLI            → Google API                    │
+│  - Codex CLI              → OpenAI API                    │
+│  - Custom Agent SDK apps → anything                      │
+│                                                          │
+│  THIS IS WHERE THE LLM LIVES. Paperloom doesn't know     │
+│  which one; paperloom doesn't care.                      │
+└─────────────────────────┬────────────────────────────────┘
+                          │  MCP protocol over stdio
+                          │  (identical regardless of host or model)
+                          ▼
+┌──────────────────────────────────────────────────────────┐
+│  PAPERLOOM MCP SERVER                                    │
+│  10 tools, pure file operations, no LLM code path.       │
+└──────────────────────────────────────────────────────────┘
 ```
 
-**Vault config extension** (`.paperloom/config.yaml`):
+**Consequence:** paperloom's code is identical whether the user runs Claude Sonnet, Gemini Pro, GPT-5, or Qwen3-14B on Ollama. There is no `--model` flag on `paperloom mcp`. There is no `ANTHROPIC_API_KEY` or `OLLAMA_HOST` in paperloom's config. The host agent handles all of that.
 
-```yaml
-ollama:
-  enabled: true
-  host: http://localhost:11434
-  model: qwen3:14b        # or llama3.2:3b on low-RAM machines
-  fallback_model: llama3.2:3b
-```
+### For users who want offline / local models
 
-**Auto-selection helper.** `paperloom doctor --pick-ollama-model` reads system RAM and recommends a model:
+Recommend one of these agent products in the docs (in `docs/quickstart-local.md`). Do not bundle any of them; do not depend on any of them; just tell users which one to install:
 
-- ≥ 32 GB RAM → `qwen3:14b`
-- 16–32 GB → `qwen3:8b`
-- 8–16 GB → `qwen3:4b` or `llama3.2:3b`
-- < 8 GB → `llama3.2:3b`
+| Host agent | Local model support | Setup difficulty | Notes |
+|---|---|---|---|
+| **Continue.dev** | Excellent, first-class Ollama | Easy | VSCode/JetBrains extension. Best local-first UX. |
+| **Cline** | Excellent, native Ollama config | Easy | VSCode extension. Per-tool confirmation dialogs. |
+| **Aider** | Good; `--model ollama/qwen3:14b` | Easy | CLI, git-aware. |
+| **OpenCode** | Good, model-agnostic | Medium | Newer, actively developed. |
+| **Custom app** | Whatever you build | Hard | Claude Agent SDK or MCP Python SDK. |
 
-Then optionally runs `ollama pull <model>` (with a progress bar via supervisor).
+**Do not recommend:** running LiteLLM in front of anything (security), or building your own agent (not paperloom's job).
 
-**Design note for the agent (CLAUDE.md):** if `synth_available` returns `{"available": true}`, the agent MAY delegate long, mechanical tasks (regenerating context.md, drafting lint reports) to `synth`. The agent SHOULD NOT delegate the reasoning that produces high-quality answers — that's what the host agent (Claude Code) is for. Rule of thumb: use `synth` for grunt work, use the host for judgment.
+### Model quality tiers and what to expect
+
+This is the honest guidance to put in the docs. The three-question test in `tests/qualitative/three_question_eval.md` is the reference for what "works well" looks like.
+
+| Model class | Examples | Expected quality against three-question test |
+|---|---|---|
+| **Frontier** | Claude Sonnet 4.5+, GPT-5, Gemini 2.5 Pro | Excellent — this is the reference bar |
+| **Strong local** | Qwen3-32B, Llama 3.3-70B (on capable hardware) | Good — noticeable quality gap but usable |
+| **Medium local** | Qwen3-14B, Llama 3.1-8B | Acceptable for factual retrieval; weaker at synthesis; use `mode: local` schema |
+| **Small local** | Llama 3.2-3B, Qwen3-4B | Retrieval only; do not expect synthesis quality. Use as a fallback. |
+
+Do not promise more than this. Do not hide the tier gap in the README.
+
+### The one accommodation paperloom makes for small models
+
+Add exactly one MCP tool (Section 9) that returns an explicit step-by-step workflow recipe: `describe_workflow`. Small models that would otherwise lose the thread across a multi-step operation call this tool as their first move and follow the recipe verbatim. Frontier models ignore it because CLAUDE.md is already sufficient guidance.
+
+This is the *only* concession paperloom makes to model capability. Everything else stays in the schema.
+
+### Three principles that hold this design together
+
+Any deviation should be checked against them:
+
+1. **Paperloom's value is its schema and its file operations, not its intelligence.** The intelligence lives in the host agent. Adding LLM calls inside paperloom would make the same product MindBase already is, complete with the API-key requirement explicitly rejected in Section 1.
+2. **Model capability should affect the schema, not the code.** The tool interface is invariant. Only the CLAUDE.md instructions change per mode (Section 8's "Operating mode"). This keeps the code testable (one code path) while letting the user experience adapt to model capability (via schema).
+3. **Small-model support is best-effort, not core.** Frontier models are the primary target because they produce the demo-worthy answers that drive adoption. Small-model support is a graceful degradation path for users who need offline or free operation. Do not compromise the frontier experience to make small models work better.
+
+If you find yourself adding a second CLAUDE.md, a `run_llm` tool, an OpenRouter integration, or a "smart" server-side pipeline, stop. Choose the version that doesn't do those things.
 
 ---
 
@@ -890,7 +947,7 @@ Testing infrastructure is not optional. Ship these tests with the initial implem
 - Search with `path_prefix`, assert scoping.
 - Search on empty query, assert graceful empty result.
 
-**`test_mcp_tools.py`:** for each of the 9 tools, one happy-path test and one error-path test.
+**`test_mcp_tools.py`:** for each of the 10 tools, one happy-path test and one error-path test. `describe_workflow` additionally gets a `list_all` test and an unknown-operation test (must return a helpful message, not raise — a weak local model mistyping an operation name shouldn't crash).
 
 **`test_plugins.py`:**
 - Built-in `example_plugin` registers tools successfully.
@@ -924,9 +981,9 @@ Follow this order exactly. It's the pattern that works for developer-tool repos 
 7. **Install** — pip + optional extras.
 8. **First vault (5 minutes)** — walkthrough.
 9. **Architecture** — the 3-layer diagram from CLAUDE.md.
-10. **The 9 tools** — table with descriptions.
+10. **The 10 tools** — table with descriptions.
 11. **Plugins** — how to write one, link to docs.
-12. **Ollama backend** — for offline use.
+12. **Local / offline models** — model-agnostic architecture, link to `docs/quickstart-local.md`.
 13. **Migrating from MindBase** — one command.
 14. **Roadmap** — planned plugins, not core features (core is done).
 15. **Contributing** — CONTRIBUTING.md link.
@@ -942,7 +999,7 @@ Every line item here has been considered and rejected for v0.1. If a user asks f
 - **Web UI.** The host agent (Claude Code) is the UI. Users who want a browser can point Obsidian at the vault (§16).
 - **Multi-user auth, RBAC, team features.** Paperloom is single-user. Multi-user is a completely different product.
 - **Vector database, embeddings, semantic search.** Not in core. Ship as an optional plugin later if users demonstrate need. `search` (ripgrep) is enough up to ~500 papers per Karpathy's own experience and MindBase's evidence.
-- **Its own LLM router / abstraction over Claude/Gemini/OpenAI.** The host agent is the LLM. Ollama plugin is the only "we call an LLM" path.
+- **Its own LLM router / abstraction over Claude/Gemini/OpenAI/Ollama.** The host agent is the LLM, always — paperloom never calls one itself, not even a local Ollama model. See §11.
 - **Automatic wiki writing without user approval.** `create_note` and `append_to_page` are exposed as tools; the agent decides when to call them based on CLAUDE.md's workflow. There is no autonomous background writer.
 - **A daemon / persistent server / SaaS.** `paperloom mcp` is stdio-only, one process per client. No `paperloomd`.
 - **Vector-based deduplication of methods/concepts.** The agent handles this via `search` + reasoning. Adding fuzzy-matching logic to the tool is scope creep.
@@ -975,16 +1032,16 @@ Document this in README under "Optional: browse your vault visually." Do not dep
 3. `cli.py` scaffold with `init` and `version`. Verify template copy works, config loads.
 4. `ingest.py` + `paperloom ingest` command. Verify against 2-3 real PDFs from user's collection.
 5. `search.py` — ripgrep wrapper first; SQLite FTS5 as follow-up if ripgrep is limiting.
-6. `mcp_server.py` — the 9 tools. Verify with Claude Code by dropping `.mcp.json` in the vault.
+6. `mcp_server.py` — the 10 tools, including `describe_workflow`. Verify with Claude Code by dropping `.mcp.json` in the vault.
 7. `plugins/__init__.py` + `example_plugin.py` + tests. Verify loading order.
-8. `templates/scientific-paper-vault/CLAUDE.md` — the schema. This is documentation and product.
+8. `templates/scientific-paper-vault/CLAUDE.md` — the mode-aware schema (§8's addition). This is documentation and product.
 9. `migrate-from-mindbase` — nice-to-have, ship in v0.2 if not ready.
-10. `plugins/ollama_synth.py` — ship in v0.2.
+10. `workflows/*.md` (the `describe_workflow` recipes) + `docs/quickstart-local.md` + `tests/qualitative/three_question_eval.md`. *(Redefined by `paperloom_ollama_correction.md` — no longer `plugins/ollama_synth.py`; ships in v0.1 alongside item 6, since `describe_workflow` is now a core tool, not an opt-in plugin.)*
 11. Docs, README, examples/. Ship in v0.1.
 12. CI, release automation. Ship in v0.1.
 
-**v0.1 (this weekend + next):** items 1-8, 11, 12. Enough to actually use.
-**v0.2:** items 9, 10 + first three planned plugins (arxiv_watcher, marp_export, graph_export).
+**v0.1 (this weekend + next):** items 1-8, 10, 11, 12. Enough to actually use.
+**v0.2:** item 9 + first three planned plugins (arxiv_watcher, marp_export, graph_export).
 **v0.3+:** plugin ecosystem, community contributions.
 
 ---

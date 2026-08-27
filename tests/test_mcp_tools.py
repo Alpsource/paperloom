@@ -232,3 +232,37 @@ async def test_vault_info_error_outside_any_vault(tmp_path, monkeypatch):
     monkeypatch.chdir(outside)
     with pytest.raises(ToolError):
         await _call("vault_info")
+
+
+# ------------------------------------------------------ describe_workflow ---
+
+
+async def test_describe_workflow_happy(vault):
+    result = await _call("describe_workflow", operation="ask")
+    recipe = result.data
+    assert "Step 1" in recipe
+    assert "search" in recipe
+
+
+async def test_describe_workflow_list_all(vault):
+    result = await _call("describe_workflow", operation="list_all")
+    names = result.data.splitlines()
+    assert names == sorted(names)
+    for expected in ("ask", "contribute", "ingest", "lint", "rebuild_context"):
+        assert expected in names
+
+
+async def test_describe_workflow_unknown_operation_returns_message_not_error(vault):
+    # Deliberately doesn't raise — a weak local model mistyping the operation
+    # name should get something it can read and recover from, not a crash.
+    result = await _call("describe_workflow", operation="not-a-real-operation")
+    assert "No recipe" in result.data
+    assert "ask" in result.data  # lists what's actually available
+
+
+async def test_describe_workflow_error_outside_any_vault(tmp_path, monkeypatch):
+    outside = tmp_path / "not-a-vault"
+    outside.mkdir()
+    monkeypatch.chdir(outside)
+    with pytest.raises(ToolError):
+        await _call("describe_workflow", operation="ask")
