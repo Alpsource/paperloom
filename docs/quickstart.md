@@ -10,10 +10,12 @@ resolves the same graph fine):
 
 ```bash
 git clone https://github.com/Alpsource/paperloom
-cd paperloom
-uv venv && uv pip install .
-source .venv/bin/activate
+uv tool install ./paperloom
 ```
+
+`paperloom` is now a plain global command — no venv to activate, works
+from any directory. (If you're developing paperloom itself rather than
+just using it, use a project venv instead — see `CONTRIBUTING.md`.)
 
 You'll also need [ripgrep](https://github.com/BurntSushi/ripgrep#installation)
 (`apt install ripgrep` / `brew install ripgrep` / etc.) — it's a system
@@ -62,6 +64,11 @@ Then, from inside the vault directory:
 claude "/contribute the paper at sources/raw/2301.08243"
 claude "What does my wiki know about JEPA?"
 ```
+
+(Want a fully offline, no-API-key setup instead? Run
+`ollmcp --servers-json .mcp.json --model qwen3.5:4b` in place of `claude`
+— same `.mcp.json`, same vault, no editor required. See
+[Local / offline models](quickstart-local.md).)
 
 The agent reads `CLAUDE.md`, decides what pages to create or update, shows
 you a plan, and — on your approval — writes real wiki pages via the MCP
