@@ -11,9 +11,9 @@ and paperloom's code is identical no matter which one you pick.
 ┌──────────────────────────────────────────────────────────┐
 │  HOST AGENT (any MCP-compatible client)                  │
 │  - Claude Code           → Anthropic API                 │
+│  - ollmcp (standalone)   → any model incl. Ollama        │
 │  - Continue.dev          → any model incl. Ollama        │
 │  - Cline (VSCode)        → any model incl. Ollama        │
-│  - Aider                 → any model incl. Ollama        │
 │  - Gemini CLI            → Google API                    │
 │  - Codex CLI              → OpenAI API                    │
 │  - Custom Agent SDK apps → anything                      │
@@ -38,21 +38,56 @@ paperloom itself changes.
 
 ## Which host agent to use with a local model
 
-Recommended, roughly by ease of setup:
+**If you don't want an editor at all** — you just want the same
+terminal-in-a-folder experience `claude` already gives you, powered by
+Ollama instead — use **[`ollmcp`](https://github.com/jonigl/mcp-client-for-ollama)**
+(`mcp-client-for-ollama`): a standalone terminal MCP client, not an editor
+extension. It reads the exact same `.mcp.json` your vault already has.
+This is the recommended path if "standalone app" is the goal.
+
+```bash
+uv tool install --upgrade ollmcp
+```
+
+(Same `uv` you already used to install paperloom — no new toolchain.)
+
+Run it from inside your vault, the same way you'd run `claude`:
+
+```bash
+ollmcp --servers-json .mcp.json --model qwen3.5:4b
+```
+
+That's it. No config file to create, no editor to install — `ollmcp`
+inherits its working directory from wherever you launched it, so
+`find_vault_root()` resolves your vault correctly with zero extra
+configuration (this is the whole class of problem Cline's global-config
+`cwd` gotcha, further down, doesn't even apply to here). Requires `ollama`
+already running in the background (`ollama serve`, or the Ollama app) —
+`ollmcp` connects to it but doesn't start it for you.
+
+**If you do want editor integration** (VSCode/JetBrains, inline diffs,
+etc.), these are the options — but none of them are required, and if
+you'd rather stay terminal-only, skip this table entirely:
 
 | Host agent | Local model support | Setup difficulty | Notes |
 |---|---|---|---|
 | **Continue.dev** | Excellent, first-class Ollama | Easy | VSCode/JetBrains extension. Best local-first UX. |
-| **Cline** | Excellent, native Ollama config | Easy | VSCode extension. Per-tool confirmation dialogs. |
-| **Aider** | Good; `--model ollama/qwen3:14b` | Easy | CLI, git-aware. |
+| **Cline** | Excellent, native Ollama config | Easy | VSCode extension. Per-tool confirmation dialogs. Global (not per-project) MCP config — see the `cwd` note below. |
 | **OpenCode** | Good, model-agnostic | Medium | Newer, actively developed. |
 | **Custom app** | Whatever you build | Hard | Claude Agent SDK or MCP Python SDK. |
+
+**Not listed: Aider.** It's a good standalone CLI with strong Ollama
+support, but — checked directly, not assumed — Aider has no MCP support
+at all (open RFC, nothing shipped). Since paperloom's entire value is its
+MCP tools, Aider genuinely cannot use paperloom regardless of how good its
+Ollama integration otherwise is. `ollmcp` above is the actual standalone-
+CLI answer for this project.
 
 **Don't:** run a LiteLLM proxy in front of anything (a real security
 surface for no real benefit here), or build your own agent from scratch —
 that's not what paperloom is for; use one of the above instead.
 
-## Setting up Cline specifically
+## Setting up Cline specifically (optional — only if you want VS Code)
 
 Cline's MCP config isn't project-scoped like Claude Code's `.mcp.json` —
 it's one **global** file, shared across every VS Code workspace you open:
@@ -90,7 +125,7 @@ open workspace) unless `cwd` is set explicitly — see
 currently have open — so this one global config entry correctly follows
 you to any paperloom vault you open, no per-vault Cline reconfiguration
 needed (unlike `.mcp.json`, which — being per-project already — has no
-equivalent problem for Claude Code, Continue.dev, or Aider).
+equivalent problem for Claude Code, `ollmcp`, or Continue.dev).
 
 After adding the entry: restart VS Code (or reload the Cline extension),
 open your vault folder as the workspace, and check Cline's MCP panel shows

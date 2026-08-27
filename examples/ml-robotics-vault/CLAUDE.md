@@ -28,12 +28,13 @@ Set one of the following based on what host agent you use with this vault:
   synthesize, walk the graph 2 hops deep, and proactively offer to file
   answers as synthesis pages.
 
-- `mode: local` — you use Continue.dev / Cline / Aider pointed at a local
-  Ollama model (Qwen3-14B, Llama 3-8B, or similar). The agent gets
-  step-by-step recipes for every operation, does not attempt multi-hop
-  reasoning, asks for confirmation before every write, and reads fewer
-  pages per query to fit smaller context windows. Call `describe_workflow`
-  first if unsure of the steps for an operation.
+- `mode: local` — you use `ollmcp` (standalone terminal, no editor
+  required — see `docs/quickstart-local.md`), or Continue.dev / Cline if
+  you want editor integration, pointed at a local Ollama model. The agent
+  gets step-by-step recipes for every operation, does not attempt
+  multi-hop reasoning, asks for confirmation before every write, and
+  reads fewer pages per query to fit smaller context windows. Call
+  `describe_workflow` first if unsure of the steps for an operation.
 
 **Current mode: capable**    ← edit to `local` if using local models
 

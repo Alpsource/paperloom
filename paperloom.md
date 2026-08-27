@@ -22,7 +22,7 @@ These are the invariants the implementation must preserve. Every change to the c
 
 3. **Markdown files on disk are the source of truth.** No SQLite index, no cached JSON, no `.paperloom.db`. If a file exists in `sources/research/foo.md`, that's what the tool sees. If the user deletes it, it's gone. If the user runs `git checkout`, the vault reflects that. The `.paperloom/` folder holds only ephemeral cache (search index, MinerU parse cache) that can be safely deleted and rebuilt.
 
-4. **No LLM API keys, ever, and no LLM calls of any kind — including local ones.** The tool must never require `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, or any equivalent to function, and it must never call Ollama or any other model directly either. The tool exposes file operations; the host agent supplies the intelligence via whatever subscription or local model the user already has. Users who want fully-offline synthesis point a local-model-capable host agent (Continue.dev, Cline, Aider, ...) at paperloom's MCP server — see Section 11.
+4. **No LLM API keys, ever, and no LLM calls of any kind — including local ones.** The tool must never require `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, or any equivalent to function, and it must never call Ollama or any other model directly either. The tool exposes file operations; the host agent supplies the intelligence via whatever subscription or local model the user already has. Users who want fully-offline synthesis point a local-model-capable host agent (`ollmcp` for a standalone terminal setup, or Continue.dev/Cline for editor integration) at paperloom's MCP server — see Section 11.
 
 5. **Every subprocess is supervised.** Ingestion spawns MinerU (which spawns Python subprocesses which spawn PyTorch which spawns CUDA workers). Every one of these gets registered with a supervisor that guarantees termination via `atexit`, signal handlers, and process-group kills. A `KeyboardInterrupt`, an unhandled exception, an OOM, or a machine power-off must never leave orphan processes. This is a first-class invariant with tests, not a nice-to-have.
 
@@ -588,11 +588,12 @@ Set one of the following based on what host agent you use with this vault:
   synthesize, walk the graph 2 hops deep, and proactively offer to file
   answers as synthesis pages.
 
-- `mode: local` — you use Continue.dev / Cline / Aider pointed at a local
-  Ollama model (Qwen3-14B, Llama 3-8B, or similar). The agent gets
-  step-by-step recipes for every operation, does not attempt multi-hop
-  reasoning, asks for confirmation before every write, and reads fewer
-  pages per query to fit smaller context windows.
+- `mode: local` — you use `ollmcp` (standalone terminal, no editor
+  required), or Continue.dev / Cline if you want editor integration,
+  pointed at a local Ollama model. The agent gets step-by-step recipes
+  for every operation, does not attempt multi-hop reasoning, asks for
+  confirmation before every write, and reads fewer pages per query to fit
+  smaller context windows.
 
 **Current mode: capable**    ← edit to `local` if using local models
 
@@ -837,9 +838,9 @@ Then `pip install my-paperloom-plugin` and `paperloom mcp` picks it up automatic
 ┌──────────────────────────────────────────────────────────┐
 │  HOST AGENT (any MCP-compatible client)                  │
 │  - Claude Code           → Anthropic API                 │
+│  - ollmcp (standalone)   → any model incl. Ollama         │
 │  - Continue.dev          → any model incl. Ollama         │
 │  - Cline (VSCode)        → any model incl. Ollama         │
-│  - Aider                 → any model incl. Ollama         │
 │  - Gemini CLI            → Google API                    │
 │  - Codex CLI              → OpenAI API                    │
 │  - Custom Agent SDK apps → anything                      │
@@ -864,11 +865,13 @@ Recommend one of these agent products in the docs (in `docs/quickstart-local.md`
 
 | Host agent | Local model support | Setup difficulty | Notes |
 |---|---|---|---|
-| **Continue.dev** | Excellent, first-class Ollama | Easy | VSCode/JetBrains extension. Best local-first UX. |
-| **Cline** | Excellent, native Ollama config | Easy | VSCode extension. Per-tool confirmation dialogs. |
-| **Aider** | Good; `--model ollama/qwen3:14b` | Easy | CLI, git-aware. |
+| **`ollmcp`** (`mcp-client-for-ollama`) | Excellent — purpose-built for this | Easy | Standalone terminal MCP client, not an editor extension — `uv tool install --upgrade ollmcp`, then run it from the vault directory the same way you'd run `claude`. Reads the vault's own `.mcp.json` directly via `--servers-json`. The right answer when "standalone app, no editor" is the actual goal. |
+| **Continue.dev** | Excellent, first-class Ollama | Easy | VSCode/JetBrains extension. Best local-first UX if you *do* want an editor. |
+| **Cline** | Excellent, native Ollama config | Easy | VSCode extension. Per-tool confirmation dialogs. MCP config is global (not per-project) — needs `cwd` set explicitly or it can spawn servers in the wrong directory. |
 | **OpenCode** | Good, model-agnostic | Medium | Newer, actively developed. |
 | **Custom app** | Whatever you build | Hard | Claude Agent SDK or MCP Python SDK. |
+
+**Not Aider** — checked directly rather than assumed: despite strong native Ollama support, Aider has no MCP support at all (open RFC, nothing shipped as of this writing). Since paperloom's entire interface is its MCP tools, Aider cannot use paperloom regardless of its Ollama integration quality.
 
 **Do not recommend:** running LiteLLM in front of anything (security), or building your own agent (not paperloom's job).
 
