@@ -102,16 +102,18 @@ combined dependency graph of `mineru[core]` + `fastmcp` together), while
 
 ```bash
 git clone https://github.com/Alpsource/paperloom
-cd paperloom
-
 curl -LsSf https://astral.sh/uv/install.sh | sh   # if you don't have uv yet
-uv venv
-uv pip install .
-source .venv/bin/activate
+uv tool install ./paperloom
 ```
 
-(`uv pip install -e .` instead of `.` if you want to hack on paperloom
-itself — see [`CONTRIBUTING.md`](CONTRIBUTING.md).)
+That's it — `paperloom` is now a plain global command, usable from any
+directory, no venv to activate, ever. (`uv tool install` uses the same
+resolver as `uv pip install .` above, so the same
+`resolution-too-deep`-avoidance applies — this isn't a different,
+untested install path.)
+
+If you're hacking on paperloom itself rather than just using it, use a
+project venv instead — see [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 You also need **[ripgrep](https://github.com/BurntSushi/ripgrep#installation)**
 on `PATH` — it's a system binary, not a pip package:
@@ -125,13 +127,15 @@ brew install ripgrep
 sudo dnf install ripgrep
 ```
 
-Optional extras:
+Optional extra:
 
 ```bash
-uv pip install "paperloom[ollama]"   # offline synthesis via a local Ollama model
-uv pip install "paperloom[grobid]"   # bibliography extraction via GROBID
-uv pip install "paperloom[dev]"      # pytest, ruff, mypy, pre-commit, mkdocs-material, pip-audit
+uv tool install "./paperloom[grobid]"   # bibliography extraction via GROBID
 ```
+
+(`[dev]` — pytest, ruff, mypy, etc. — is for working on paperloom itself,
+not for using it; see [`CONTRIBUTING.md`](CONTRIBUTING.md) for that
+venv-based flow instead.)
 
 `mineru[core]` (the actual local PDF parser, pulled in automatically as a
 core dependency) is heavy — it installs PyTorch, and downloads several GB
