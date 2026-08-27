@@ -240,10 +240,15 @@ overriding the earlier on a name collision. See
 
 Paperloom never calls an LLM itself — not Claude, not GPT, not a local
 Ollama model, not anything. The MCP server is 10 file-operation tools;
-the LLM always lives in your host agent. Want a fully offline, free setup?
-Point [Continue.dev](https://continue.dev), [Cline](https://cline.bot), or
-[Aider](https://aider.chat) at a local Ollama model instead of Claude Code
-— same `.mcp.json`, same paperloom, zero code changes on paperloom's side.
+the LLM always lives in your host agent. Want a fully offline, free,
+still-standalone-terminal setup? Run
+[`ollmcp`](https://github.com/jonigl/mcp-client-for-ollama) instead of
+`claude` — `uv tool install --upgrade ollmcp`, then
+`ollmcp --servers-json .mcp.json --model qwen3.5:4b` from inside your
+vault. Same `.mcp.json`, same paperloom, zero code changes on paperloom's
+side, no editor required. [Continue.dev](https://continue.dev) and
+[Cline](https://cline.bot) are the options if you *do* want VSCode
+integration instead.
 
 The one accommodation paperloom's schema makes for weaker local models:
 `describe_workflow(operation=...)`, a tool that returns an explicit
