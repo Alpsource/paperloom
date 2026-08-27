@@ -10,12 +10,19 @@ resolves the same graph fine):
 
 ```bash
 git clone https://github.com/Alpsource/paperloom
-uv tool install ./paperloom
+cd paperloom
+uv venv && uv pip install .
+source .venv/bin/activate
 ```
 
-`paperloom` is now a plain global command — no venv to activate, works
-from any directory. (If you're developing paperloom itself rather than
-just using it, use a project venv instead — see `CONTRIBUTING.md`.)
+Isolated in its own venv on purpose — paperloom's dependency stack
+(PyTorch, transformers, ...) never touches your global Python or any
+other project's environment.
+
+*Prefer one command over an explicit venv?* `uv tool install ./paperloom`
+gives the same isolation (each tool gets its own private venv under the
+hood, same model as `pipx`) without an `activate` step — just a matter of
+preference, not a tradeoff.
 
 You'll also need [ripgrep](https://github.com/BurntSushi/ripgrep#installation)
 (`apt install ripgrep` / `brew install ripgrep` / etc.) — it's a system

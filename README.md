@@ -102,18 +102,25 @@ combined dependency graph of `mineru[core]` + `fastmcp` together), while
 
 ```bash
 git clone https://github.com/Alpsource/paperloom
+cd paperloom
+
 curl -LsSf https://astral.sh/uv/install.sh | sh   # if you don't have uv yet
-uv tool install ./paperloom
+uv venv
+uv pip install .
+source .venv/bin/activate
 ```
 
-That's it — `paperloom` is now a plain global command, usable from any
-directory, no venv to activate, ever. (`uv tool install` uses the same
-resolver as `uv pip install .` above, so the same
-`resolution-too-deep`-avoidance applies — this isn't a different,
-untested install path.)
+Isolated in its own venv, on purpose — paperloom's dependency stack
+(PyTorch, transformers, ...) never touches your global Python or any
+other project's environment. (`uv pip install -e .` instead of `.` if
+you want to hack on paperloom itself — see [`CONTRIBUTING.md`](CONTRIBUTING.md).)
 
-If you're hacking on paperloom itself rather than just using it, use a
-project venv instead — see [`CONTRIBUTING.md`](CONTRIBUTING.md).
+*Alternative, equally isolated but no `activate` step:* `uv tool install`
+gives each tool its own private venv under the hood too (same model as
+`pipx`) — only the command itself lands on `PATH`, never the underlying
+packages. `uv tool install ./paperloom` is a legitimate one-command
+option if you'd rather skip explicit venv management; both approaches
+give you the same isolation guarantee, it's a matter of preference.
 
 You also need **[ripgrep](https://github.com/BurntSushi/ripgrep#installation)**
 on `PATH` — it's a system binary, not a pip package:

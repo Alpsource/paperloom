@@ -49,7 +49,13 @@ This is the recommended path if "standalone app" is the goal.
 uv tool install --upgrade ollmcp
 ```
 
-(Same `uv` you already used to install paperloom — no new toolchain.)
+(Same `uv` you already used to install paperloom — no new toolchain.
+Isolated in its own private venv under the hood, same as any other
+`uv tool install` — never shares dependencies with paperloom's own venv
+or anything else on your system. Prefer an explicit venv instead?
+`uv venv ~/.venvs/ollmcp && uv pip install --python ~/.venvs/ollmcp ollmcp`
+works identically, just with a visible, activatable venv — either way
+gets you the same isolation.)
 
 Run it from inside your vault, the same way you'd run `claude`:
 
