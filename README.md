@@ -208,7 +208,7 @@ actual judgment lives, always citing back to `raw/`; `sources/contributors/`
 is your own daily log, appended to but never rewritten. See
 [`docs/schema.md`](docs/schema.md) for the full page-shape reference.
 
-## The 9 tools
+## The 10 tools
 
 | Tool | Does |
 |---|---|
@@ -221,6 +221,7 @@ is your own daily log, appended to but never rewritten. See
 | `log_entry` | Append a timestamped line to today's log, or a contributor's daily file. |
 | `ingest_pdf` | Ingest a single PDF from inside an agent session — the same pipeline as `paperloom ingest`, supervised subprocess included. |
 | `vault_info` | Root, config, and file counts for the current vault — a good first call each session. |
+| `describe_workflow` | Return a step-by-step recipe for `/contribute`, `/ask`, `/lint`, or `/rebuild-context` — the one accommodation for weaker local models (see [Local / offline models](#local--offline-models)); frontier models don't usually need it. |
 
 That's the whole list, on purpose — see the build spec for what's
 deliberately *not* a core tool (semantic search, auto-linting fixups,
@@ -235,14 +236,26 @@ overriding the earlier on a name collision. See
 [`docs/plugins.md`](docs/plugins.md) for the full guide and the reference
 `example_plugin.py` (`word_count`, `find_orphans`).
 
-## Ollama backend
+## Local / offline models
 
-For headless/scheduled jobs (nightly `/rebuild-context`, a cron'd `/lint`)
-where no host agent is actively driving the session, `uv pip install
-"paperloom[ollama]"` adds a `synth` tool that runs a prompt through a local
-Ollama model — no API key, fully offline. Use it for mechanical grunt work;
-the interactive host agent is still where the actual judgment happens.
-*(v0.2 — not yet built; tracked as §17 item 10 in the build spec.)*
+Paperloom never calls an LLM itself — not Claude, not GPT, not a local
+Ollama model, not anything. The MCP server is 10 file-operation tools;
+the LLM always lives in your host agent. Want a fully offline, free setup?
+Point [Continue.dev](https://continue.dev), [Cline](https://cline.bot), or
+[Aider](https://aider.chat) at a local Ollama model instead of Claude Code
+— same `.mcp.json`, same paperloom, zero code changes on paperloom's side.
+
+The one accommodation paperloom's schema makes for weaker local models:
+`describe_workflow(operation=...)`, a tool that returns an explicit
+step-by-step recipe for any of the four operations, plus a `mode: local`
+variant of every workflow baked directly into `CLAUDE.md` (fewer hops,
+smaller reads, confirmation before every write). Switching a vault to
+local mode is a one-line edit in its `CLAUDE.md`.
+
+See [`docs/quickstart-local.md`](docs/quickstart-local.md) for the full
+host-agent comparison and an honest breakdown of what to expect at each
+model-quality tier — we're not going to promise a 3B model synthesizes
+like Sonnet does, and neither should you.
 
 ## Migrating from MindBase
 
@@ -277,7 +290,7 @@ Planned plugins (v0.3+, community-contributable), not core-tool additions:
 - `graph_export` — export the `[[wikilink]]` graph as GraphViz/JSON.
 - `citekey_lint` — validate `\cite{...}` references in draft artifacts.
 
-Core (the 9 tools, the CLI, the plugin system, the schema) is considered
+Core (the 10 tools, the CLI, the plugin system, the schema) is considered
 done as of v0.1 — see [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Contributing

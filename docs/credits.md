@@ -41,10 +41,11 @@ Three specific differences, all driven by the scientific-paper use case:
    keeps a `~/mindbase-data/projects/<name>/` layout outside your repo;
    paperloom vaults are fully self-contained — `git init && paperloom init`
    in any folder produces a complete, portable knowledge base.
-3. **Zero required LLM API keys.** The host coding agent (Claude Code,
-   Gemini CLI, whatever you're already paying for) supplies all the
-   intelligence. The Ollama plugin (v0.2) is opt-in for fully-offline
-   headless jobs, never a requirement.
+3. **Zero required LLM API keys, and no LLM calls of any kind from
+   paperloom itself.** The host coding agent (Claude Code, Gemini CLI, or
+   a local-model host like Continue.dev/Cline pointed at Ollama) supplies
+   all the intelligence — paperloom's MCP server is identical regardless
+   of which one you use. See [`quickstart-local.md`](quickstart-local.md).
 
 Nothing MindBase does that isn't reflected here is lost for a paperloom
 user working with Claude Code — it's either a smart feature now handled by

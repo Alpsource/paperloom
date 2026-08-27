@@ -50,7 +50,10 @@ Changelog = "https://github.com/Alpsource/paperloom/blob/main/CHANGELOG.md"
 # actual failed `uv sync --extra dev` run. Omitted entirely rather than
 # shipping a broken group; stdlib sqlite3's FTS5 needs no extra install.
 [project.optional-dependencies]
-ollama = ["ollama>=0.4"]            # for the offline synthesis plugin (§11)
+# No `ollama` extra — paperloom never calls an LLM itself, including local
+# ones. See paperloom_ollama_correction.md: local-model support comes from
+# other MCP-compatible host agents (Continue.dev, Cline, Aider, ...), not
+# from a paperloom-bundled plugin. docs/quickstart-local.md covers this.
 grobid = ["grobid-tei-xml>=0.1"]    # for bibliography extraction
 dev    = ["pytest>=8.3", "pytest-xdist", "pytest-asyncio>=0.24", "ruff>=0.6",
           "mypy>=1.11", "pre-commit", "mkdocs-material", "pip-audit"]

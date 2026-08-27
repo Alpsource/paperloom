@@ -18,6 +18,28 @@ The user curates sources, asks the questions, and thinks.
 - Adjacent topics I care about: MLSys, foundation models for biology,
   world models.
 
+## Operating mode (EDIT THIS ONCE)
+
+Set one of the following based on what host agent you use with this vault:
+
+- `mode: capable` — you use Claude Code with Sonnet-tier or better, Gemini
+  CLI with Gemini 2.5 Pro, or GPT-5-tier via Codex/similar. The agent is
+  expected to follow this schema in full, use judgment about when to
+  synthesize, walk the graph 2 hops deep, and proactively offer to file
+  answers as synthesis pages.
+
+- `mode: local` — you use Continue.dev / Cline / Aider pointed at a local
+  Ollama model (Qwen3-14B, Llama 3-8B, or similar). The agent gets
+  step-by-step recipes for every operation, does not attempt multi-hop
+  reasoning, asks for confirmation before every write, and reads fewer
+  pages per query to fit smaller context windows. Call `describe_workflow`
+  first if unsure of the steps for an operation.
+
+**Current mode: capable**    ← edit to `local` if using local models
+
+The rest of this file has sections marked "[all modes]", "[capable mode]",
+and "[local mode]". Follow the sections that match your mode.
+
 ## The three layers
 
 - `sources/raw/<paper-id>/` is IMMUTABLE. Contains the original PDF, the
@@ -118,12 +140,12 @@ you consulted.
 
 ## The four operations
 
-### /contribute — process new input
+### /contribute — process new input [all modes]
 
 Trigger phrases: "add to wiki", "ingest this", "process paper X",
 "remember Y".
 
-Workflow:
+**[capable mode] Workflow:**
 1. If the input is a short thought: append to
    `sources/contributors/<user>/<today>.md`. Done.
 2. If the input references a `sources/raw/<id>/` that was ingested by
@@ -140,9 +162,25 @@ Workflow:
 3. If the input is text pasted by the user (not from raw/): treat as a
    thought → append to contributors/.
 
-### /ask — answer a question from the wiki
+**[local mode] Workflow:**
+1. Call `describe_workflow(operation="contribute")` first if you're unsure
+   of the steps.
+2. If the input is a short thought: append to
+   `sources/contributors/<user>/<today>.md`. Done — do not go further.
+3. If the input references a `sources/raw/<id>/`: read `paper.md` and
+   `meta.json`. Identify at most 2-3 candidate method/dataset names —
+   don't try to extract everything.
+4. Call `search` once per candidate name to check for existing pages.
+   Never create a page without checking first.
+5. Show a short plan (what you'll create/update) and wait for explicit
+   confirmation before writing anything — always, not just for batches.
+6. On approval, write the files. Keep each new page short — a TLDR and
+   2-3 cited claims is fine; don't attempt every section of the full page
+   shape if it's straining your context. Log the entry.
 
-Workflow:
+### /ask — answer a question from the wiki [all modes]
+
+**[capable mode] Workflow:**
 1. Call `search` for candidate pages by keyword.
 2. Read the top pages via `read_page`.
 3. Follow [[wikilinks]] at most 2 hops deep, reading each.
@@ -154,10 +192,22 @@ Workflow:
 6. Ask the user: file this answer as `sources/research/syntheses/`? If yes,
    write it and log.
 
-### /lint — health check
+**[local mode] Workflow:**
+1. Call `describe_workflow(operation="ask")` first if you're unsure of the
+   steps.
+2. Call `search` with a 2-3 word query. Get top 5 hits only.
+3. Read the single most relevant page. Do not follow wikilinks unless
+   the user explicitly asks a follow-up.
+4. Answer using only what you read. Cite the one page you consulted.
+5. Ask the user: "Should I also read [[X]] and [[Y]] to expand this?"
+   Wait for confirmation before reading more.
+6. Do not offer to file synthesis pages unless the user asks.
+
+### /lint — health check [all modes]
 
 Weekly (or on request).
 
+**[capable mode] Workflow:**
 Walk `sources/research/**/*.md`. Report:
 - Orphan pages (no inbound [[wikilinks]]).
 - Dangling links ([[X]] where X doesn't exist).
@@ -168,7 +218,20 @@ Walk `sources/research/**/*.md`. Report:
 
 Present findings to user. DO NOT auto-fix.
 
-### /rebuild-context — regenerate context.md
+**[local mode] Workflow:**
+1. Call `describe_workflow(operation="lint")` first if you're unsure of
+   the steps.
+2. List pages via `list_pages`, not by reading every page's full content
+   up front.
+3. Check dangling links and missing pages first — these are cheap
+   (compare names, no deep reading needed).
+4. Only check for orphans and unbacked-claim paragraphs if the user asks
+   for a full lint — a "quick lint" is fine as a smaller default.
+5. Present findings in a short list. Do not auto-fix, and do not attempt
+   contradiction-detection (it needs reading every page in full, which
+   local mode should avoid unless the user specifically asks for it).
+
+### /rebuild-context — regenerate context.md [all modes]
 
 Read all recent contributor entries + all research pages. Rewrite
 `context.md` as the current synthesized truth across the vault — 500-2000
@@ -176,12 +239,26 @@ words, no citations required (context.md is a landing page, not a
 reference). Snapshot the old context.md into `.paperloom/cache/snapshots/`
 first for rollback.
 
+No paperloom tool overwrites a whole file (`append_to_page` only appends;
+`create_note` refuses if the file exists) — use your own host agent's
+native file-write capability for the actual overwrite step, not a
+paperloom tool.
+
+**[local mode]:** call `describe_workflow(operation="rebuild_context")`
+first if unsure of the steps. Read fewer pages than capable mode would —
+the last 5-10 contributor entries and research pages modified most
+recently are enough for a reasonable summary; you don't need to read
+everything in the vault to regenerate this.
+
 ## Tools available
 
 Read `.paperloom/config.yaml` for the full list. Core tools you'll use most:
 `search`, `read_page`, `create_note`, `append_to_page`, `tag_note`,
 `log_entry`, `list_pages`. Ingestion (`ingest_pdf`) is usually run by the
-user via CLI, not by you.
+user via CLI, not by you. `describe_workflow(operation=...)` returns a
+step-by-step recipe for any of the four operations above — mainly useful
+in local mode; capable mode shouldn't usually need it, this file is
+already sufficient guidance.
 
 Do not install packages, spin up services, or write outside `sources/` or
 `logs/` or `artifacts/`.
