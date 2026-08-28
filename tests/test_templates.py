@@ -69,3 +69,22 @@ def test_init_ships_real_slash_commands_for_the_four_operations(tmp_path):
         path = commands_dir / f"{name}.md"
         assert path.is_file(), f"missing {path}"
         assert "description:" in path.read_text(encoding="utf-8")
+
+
+def test_init_creates_mcp_json_automatically(tmp_path):
+    """.mcp.json's content is fully static (never varies per vault) and
+    isn't Claude-Code-specific (ollmcp's --servers-json reads the exact
+    same file) — making the user hand-type it via a heredoc every time was
+    a real, unnecessary friction point a real user pushed back on.
+    Guards against losing this on a future template edit."""
+    vault = tmp_path / "vault"
+    result = runner.invoke(app, ["init", str(vault)])
+    assert result.exit_code == 0, result.output
+
+    mcp_json_path = vault / ".mcp.json"
+    assert mcp_json_path.is_file(), "paperloom init must create .mcp.json"
+
+    import json
+
+    config = json.loads(mcp_json_path.read_text(encoding="utf-8"))
+    assert config == {"mcpServers": {"paperloom": {"command": "paperloom", "args": ["mcp"]}}}

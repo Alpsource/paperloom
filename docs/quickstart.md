@@ -42,9 +42,9 @@ paperloom init
 
 This copies the `scientific-paper-vault` template into place — `CLAUDE.md`,
 an empty `context.md`/`index.md`, the `sources/`/`artifacts/`/`logs/`
-skeleton — creates `.paperloom/config.yaml`, and runs `git init` if the
-directory isn't already a repo. It does *not* create `.mcp.json` — that's
-a separate one-time step, next.
+skeleton, `.mcp.json` — creates `.paperloom/config.yaml`, and runs
+`git init` if the directory isn't already a repo. Nothing else to
+configure before you can point an agent at it.
 
 ## 3. Ingest some papers
 
@@ -59,13 +59,8 @@ separate from wiki-writing: it only ever touches `sources/raw/`, never
 
 ## 4. Point your coding agent at the vault
 
-Create `.mcp.json` in the vault root yourself (one-time, per vault):
-
-```json
-{ "mcpServers": { "paperloom": { "command": "paperloom", "args": ["mcp"] } } }
-```
-
-Then, from inside the vault directory:
+`.mcp.json` is already there (from step 2) — nothing to configure. From
+inside the vault directory:
 
 ```bash
 claude "/contribute the paper at sources/raw/2301.08243"
