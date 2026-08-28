@@ -56,14 +56,8 @@ paperloom init
 paperloom ingest ~/Downloads/papers/
 ```
 
-`paperloom init` doesn't create `.mcp.json` for you — add it yourself
-(one-time, per vault):
-
-```bash
-cat > .mcp.json << 'EOF'
-{ "mcpServers": { "paperloom": { "command": "paperloom", "args": ["mcp"] } } }
-EOF
-```
+`paperloom init` also creates `.mcp.json` for you — nothing to configure,
+it's ready for `claude` (or `ollmcp`) immediately.
 
 Then point your coding agent at the vault and start with `/contribute` or
 just ask it what's in the wiki. See [`docs/quickstart.md`](docs/quickstart.md)

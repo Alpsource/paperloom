@@ -64,6 +64,8 @@ paperloom/
 │       └── scientific-paper-vault/    # Copied verbatim by `paperloom init`
 │           ├── CLAUDE.md              # The schema (Section 8)
 │           ├── README.md              # User-editable, describes their vault
+│           ├── .mcp.json              # Static content, no per-vault variation needed
+│           ├── .claude/commands/      # Real slash commands for the four operations
 │           ├── context.md             # Empty; the agent will fill it
 │           ├── index.md               # Empty; the agent will fill it
 │           ├── log.md                 # Header only
@@ -691,7 +693,7 @@ if __name__ == "__main__":
     mcp.run()  # stdio by default
 ```
 
-**MCP config the user drops in `.mcp.json` at their vault root:**
+**MCP config — `paperloom init` writes this to `.mcp.json` at the vault root automatically** (added after real-world feedback: the content is fully static and not Claude-Code-specific — `ollmcp`'s `--servers-json` reads the same file — so making the user hand-type it every time was pure friction with no benefit):
 
 ```json
 {
@@ -1107,15 +1109,11 @@ paperloom init --template scientific-paper-vault
 # 6) Ingest a few PDFs
 paperloom ingest ~/Downloads/papers/
 
-# 7) Register with Claude Code
-cat > .mcp.json << 'EOF'
-{ "mcpServers": { "paperloom": { "command": "paperloom", "args": ["mcp"] } } }
-EOF
-
-# 8) Use it
+# 7) Use it — .mcp.json was already written by `init` in step 5, nothing
+#    to register manually
 claude "/contribute sources/raw/2301.08243"
 claude "What does my wiki know about JEPA?"
 ```
 
-If those eight steps produce useful behavior — and they will, because the intelligence is Claude Code's and the schema is your CLAUDE.md — v0.1 is done. Everything else is polish, plugins, and adoption.
+If those seven steps produce useful behavior — and they will, because the intelligence is Claude Code's and the schema is your CLAUDE.md — v0.1 is done. Everything else is polish, plugins, and adoption.
 
