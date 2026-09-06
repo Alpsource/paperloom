@@ -196,10 +196,19 @@ Trigger phrases: "add to wiki", "ingest this", "process paper X",
 **[local mode] Workflow:**
 1. Call `describe_workflow(operation="ask")` first if you're unsure of the
    steps.
-2. Call `search` with a 2-3 word query. Get top 5 hits only.
+2. Call `search` with a SHORT, literal query — 1-3 words that would
+   appear verbatim in the text. Search is exact substring matching, not
+   natural-language understanding: a longer, more natural-sounding query
+   is LESS likely to match, not more. If it returns nothing, remove
+   words before trying again, don't add more. Get top 5 hits only.
 3. Read the single most relevant page. Do not follow wikilinks unless
    the user explicitly asks a follow-up.
-4. Answer using only what you read. Cite the one page you consulted.
+4. Answer using only what you read. Cite the one page you consulted —
+   mechanically: when you use a fact that sat next to a `[[raw:...]]`
+   tag in the page you read, copy that exact tag into your own answer
+   next to the same fact, word-for-word. Do not paraphrase a citation
+   away. An answer with zero `[[raw:...]]`/`[[wikilink]]` tags in it is
+   wrong even if every fact in it is correct.
 5. Ask the user: "Should I also read [[X]] and [[Y]] to expand this?"
    Wait for confirmation before reading more.
 6. Do not offer to file synthesis pages unless the user asks.
