@@ -1,6 +1,9 @@
 <!-- markdownlint-disable MD033 MD041 -->
 # paperloom
 
+[![CI](https://github.com/Alpsource/paperloom/actions/workflows/ci.yml/badge.svg)](https://github.com/Alpsource/paperloom/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+
 Folder-scoped LLM-maintained research wiki. Karpathy's `llm-wiki` pattern,
 for scientific papers.
 
@@ -80,8 +83,10 @@ for the full walkthrough.
 - A vector database or semantic search engine. Ripgrep + agent reasoning
   covers real usage up to hundreds of papers; see the build spec's
   non-goals if you're curious why this is deliberate.
-- Its own LLM router. The Ollama plugin (v0.2) is the only "paperloom
-  calls an LLM directly" path, and it's opt-in, for headless jobs only.
+- Its own LLM router. Paperloom never calls an LLM itself, period — not
+  Claude, not GPT, not a local Ollama model. The host agent (`claude`,
+  `ollmcp`, ...) is always where the intelligence lives; see
+  [Local / offline models](#local--offline-models).
 - Multi-user, auth'd, or a SaaS. `paperloom mcp` is stdio-only, one process
   per client.
 
@@ -156,9 +161,10 @@ paperloom init
 ```
 
 This copies the `scientific-paper-vault` template in: `CLAUDE.md` (the
-schema — see below), empty `context.md`/`index.md`, and the
-`sources/`/`artifacts/`/`logs/` skeleton. It also writes
-`.paperloom/config.yaml` and runs `git init` if you haven't already.
+schema — see below), `.mcp.json` (already configured, nothing to edit),
+empty `context.md`/`index.md`, and the `sources/`/`artifacts/`/`logs/`
+skeleton. It also writes `.paperloom/config.yaml` and runs `git init` if
+you haven't already.
 
 ```bash
 paperloom ingest ~/Downloads/some-papers/
@@ -169,21 +175,42 @@ Every PDF gets parsed by MinerU into `sources/raw/<paper-id>/paper.md` +
 when possible, falling back to a content hash. This step never touches
 `sources/research/` — ingestion and wiki-writing are deliberately separate.
 
+**Now pick a host agent — both read the exact same vault and `.mcp.json`,
+nothing about the steps above changes either way.**
+
+**Claude Code** (`CLAUDE.md`'s default `mode: capable`):
 ```bash
 claude "/contribute sources/raw/2301.08243"
-```
-
-Your coding agent reads `CLAUDE.md`, drafts a plan (which pages to create,
-which to update), shows it to you, and on approval writes real wiki pages
-via the MCP tools. Repeat for more papers, then try:
-
-```bash
 claude "What does my wiki know about JEPA?"
 ```
+Reads `CLAUDE.md`, drafts a plan for `/contribute` (which pages to create,
+which to update), shows it to you, and on approval writes real wiki pages
+via the MCP tools — 2-hop `[[wikilink]]` following, raw-source citation
+verification, the works. This is the fully validated path: real 20+ paper
+vaults, real multi-page synthesis answers holding up under scrutiny.
+
+**Ollama, fully offline, no editor** — flip one line in `CLAUDE.md`
+(`Current mode: capable` → `local`) first, then:
+```bash
+uv tool install --upgrade ollmcp
+ollmcp --servers-json .mcp.json --model qwen3.5:4b
+```
+Same tools, same vault — [`ollmcp`](https://github.com/jonigl/mcp-client-for-ollama)
+is a standalone terminal MCP client (no VSCode/editor needed) that gives
+a local Ollama model the identical agentic tool-calling loop. `local`
+mode's schema asks for single-page focus, shorter searches, and
+confirmation before every write — real, honest gaps we found testing
+`qwen3.5:4b` this way: it reliably finds and reads the right pages, but
+tends toward long natural-language search queries where ripgrep needs
+short literal ones, and doesn't always carry `[[raw:...]]` citations
+through into its own answers even when told to. See
+[Local / offline models](#local--offline-models) below for the full
+picture and what to actually expect.
 
 See [`examples/ml-robotics-vault/`](examples/ml-robotics-vault/) for a
 fully populated example vault you can browse instead of building one from
-scratch.
+scratch — it already has real ingested papers and a real built wiki, so
+either host agent above works against it immediately with no setup.
 
 ## Architecture
 
@@ -264,8 +291,24 @@ local mode is a one-line edit in its `CLAUDE.md`.
 
 See [`docs/quickstart-local.md`](docs/quickstart-local.md) for the full
 host-agent comparison and an honest breakdown of what to expect at each
-model-quality tier — we're not going to promise a 3B model synthesizes
+model-quality tier — we're not going to promise a 3B/4B model synthesizes
 like Sonnet does, and neither should you.
+
+**What we actually found testing `qwen3.5:4b` via `ollmcp`** (real runs,
+not a guess): tool-calling genuinely works — it autonomously drives
+`search` → `read_page` → answer, the same loop a frontier model uses. Two
+concrete, reproducible gaps showed up: it defaults to long,
+natural-language-style search queries where ripgrep needs short literal
+ones (often takes 2-3 tries to land on a working query), and it doesn't
+reliably carry `[[raw:...]]` citations from a page it read into its own
+answer, even when `local` mode's instructions explicitly tell it to. Both
+are now addressed in `local` mode's schema (mechanical "copy the citation
+tag verbatim" instructions, guidance to shorten rather than lengthen a
+failed query) — worth knowing about either way, since it's the honest
+shape of what a mid-size local model actually does, not what the tier
+table predicts in the abstract. See
+[`tests/qualitative/three_question_eval.md`](tests/qualitative/three_question_eval.md)
+to run the same comparison yourself.
 
 ## Migrating from MindBase
 

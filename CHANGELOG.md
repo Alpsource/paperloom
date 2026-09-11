@@ -40,5 +40,11 @@ including local ones) — instead, a `describe_workflow` MCP tool, mode-aware
   — local-model host-agent guidance and the qualitative eval reference.
 - CI (lint, type-check, tests, dependency audit, a subprocess-supervision
   guardrail) and a PyPI release workflow.
+- `paperloom init` now writes `.mcp.json` automatically — its content
+  never varies per vault, so there was nothing to gain from making users
+  hand-type it.
+- `local` mode's `/ask` schema tightened after real testing against
+  `qwen3.5:4b` via `ollmcp`: explicit, mechanical citation-preservation
+  instructions, and guidance toward short literal search queries.
 
 [0.1.0]: https://github.com/Alpsource/paperloom/releases/tag/v0.1.0
